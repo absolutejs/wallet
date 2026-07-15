@@ -141,6 +141,17 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
       { accountId: input.revenueAccountId, amountCents: total },
     ] });
   },
+
+  async refundSale(input: { buyerAccountId: string; sellerAccountId: string; revenueAccountId: string; grossCents: Cents; idempotencyKey: string; originalSaleId: string }) {
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) return retry;
+    const fee = sellerFee(input.grossCents, policy.sellerFeeBps);
+    return store.commit({ idempotencyKey: input.idempotencyKey, kind: "refund", metadata: { originalSaleId: input.originalSaleId }, entries: [
+      { accountId: input.buyerAccountId, amountCents: fee.grossCents },
+      { accountId: input.sellerAccountId, amountCents: -fee.sellerNetCents },
+      { accountId: input.revenueAccountId, amountCents: -fee.feeCents },
+    ] });
+  },
 });
 
 export type Wallet = ReturnType<typeof createWallet>;

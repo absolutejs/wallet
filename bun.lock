@@ -5,7 +5,8 @@
     "": {
       "name": "@absolutejs/wallet",
       "dependencies": {
-        "@absolutejs/manifest": "^0.1.0",
+        "@absolutejs/agency": "^0.1.0",
+        "@absolutejs/manifest": "^0.2.0",
         "@sinclair/typebox": "^0.34.0",
       },
       "devDependencies": {
@@ -15,7 +16,9 @@
     },
   },
   "packages": {
-    "@absolutejs/manifest": ["@absolutejs/manifest@0.1.1", "", { "peerDependencies": { "@sinclair/typebox": "^0.34.0" }, "bin": { "absolute-manifest": "dist/cli.js" } }, "sha512-4ucQdW26675CDwiG+umrjb8+RlaQGtNMdqXAcLTZTKhN0XudVJpwdU8yzhuFljEOvU/HuOlzZaIVVCsmCPKNqg=="],
+    "@absolutejs/agency": ["@absolutejs/agency@0.1.0", "", { "dependencies": { "@absolutejs/manifest": "^0.1.1", "@sinclair/typebox": "^0.34.0" } }, "sha512-H6W2lNtCseBrLuRNHCS7NpUY5ct/xbSLu9TRqvBaNT6Xh4ZymkTs5SfTs7ySli3y99uxo/LZqcBS/hResfc9TQ=="],
+
+    "@absolutejs/manifest": ["@absolutejs/manifest@0.2.0", "", { "peerDependencies": { "@sinclair/typebox": "^0.34.0" }, "bin": { "absolute-manifest": "dist/cli.js" } }, "sha512-m6xxlaFu4pb63KL/8e0nREu/TTCDbUElwvfeMXL4sA1t93B9HMrGpnoOvw+YyEUqFKxs90iDrf2UTjVxq1cfyw=="],
 
     "@sinclair/typebox": ["@sinclair/typebox@0.34.52", "", {}, "sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw=="],
 
@@ -28,5 +31,7 @@
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@8.3.0", "", {}, "sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ=="],
+
+    "@absolutejs/agency/@absolutejs/manifest": ["@absolutejs/manifest@0.1.1", "", { "peerDependencies": { "@sinclair/typebox": "^0.34.0" }, "bin": { "absolute-manifest": "dist/cli.js" } }, "sha512-4ucQdW26675CDwiG+umrjb8+RlaQGtNMdqXAcLTZTKhN0XudVJpwdU8yzhuFljEOvU/HuOlzZaIVVCsmCPKNqg=="],
   }
 }

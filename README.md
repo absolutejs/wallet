@@ -19,5 +19,22 @@ The package does not process cards, custody crypto, or promise cash redemption.
 Payment adapters fund the clearing side of a journal entry after a verified webhook;
 applications provide a transactional persistent `WalletStore` for production.
 
+## Agent allowances
+
+`createAgentWallet` grants an agent narrowly bounded spend authority: per-item,
+daily, weekly, and lifetime caps; merchant/category/action allowlists; expiry;
+refundability; and a maximum number of open reservations. Requests reserve the
+exact amount and produce a signed mandate bound to the merchant, cart hash,
+currency, amount, agent, allowance, reservation, and expiration.
+
+Amounts above `autoApproveUpToCents` become an `@absolutejs/agency` action.
+Capture cannot proceed until current policy accepts the approval, and it then
+executes through a single-use agency lease. The model never receives a raw
+balance mutation tool.
+
+The package also exports structural AP2 intent/payment mandate adapters and a
+UCP extension payload. Those evolving protocols remain adapters; the wallet's
+allowance and accounting contracts do not depend on them.
+
 `walletPostgresSchemaSql()` supplies a production PostgreSQL journal with a
 deferred database constraint that rejects unbalanced transactions at commit.

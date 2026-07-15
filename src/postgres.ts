@@ -1,5 +1,6 @@
 const identifier = (value: string) => {
-  if (!/^[a-z][a-z0-9_]*$/i.test(value)) throw new Error("wallet: PostgreSQL namespace must be a simple identifier");
+  if (!/^[a-z][a-z0-9_]*$/i.test(value))
+    throw new Error("wallet: PostgreSQL namespace must be a simple identifier");
   return value;
 };
 
@@ -33,6 +34,26 @@ CREATE TABLE IF NOT EXISTS ${n}.reservations (
   expires_at timestamptz, created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS wallet_reservations_active_idx ON ${n}.reservations(account_id, expires_at) WHERE status = 'active';
+CREATE TABLE IF NOT EXISTS ${n}.agent_allowances (
+  allowance_id text PRIMARY KEY, agent_id text NOT NULL, owner_id text NOT NULL,
+  account_id text NOT NULL REFERENCES ${n}.accounts(id) ON DELETE RESTRICT,
+  currency text NOT NULL, status text NOT NULL CHECK (status IN ('active', 'paused', 'revoked')),
+  policy jsonb NOT NULL, valid_from timestamptz, valid_until timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS wallet_agent_allowances_agent_idx ON ${n}.agent_allowances(agent_id, status);
+CREATE TABLE IF NOT EXISTS ${n}.spend_mandates (
+  mandate_id text PRIMARY KEY, allowance_id text NOT NULL REFERENCES ${n}.agent_allowances(allowance_id) ON DELETE RESTRICT,
+  reservation_id text NOT NULL UNIQUE REFERENCES ${n}.reservations(id) ON DELETE RESTRICT,
+  idempotency_key text NOT NULL, agent_id text NOT NULL, merchant_id text NOT NULL,
+  cart_hash text NOT NULL, amount_cents bigint NOT NULL CHECK (amount_cents > 0), currency text NOT NULL,
+  binding_digest text NOT NULL, signature text NOT NULL, agency_action_id text,
+  status text NOT NULL CHECK (status IN ('active', 'pending_approval', 'captured', 'cancelled', 'expired', 'refunded')),
+  captured_transaction_id text REFERENCES ${n}.transactions(id) ON DELETE RESTRICT,
+  expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS wallet_spend_mandates_idempotency_idx ON ${n}.spend_mandates(allowance_id, idempotency_key);
+CREATE INDEX IF NOT EXISTS wallet_spend_mandates_allowance_idx ON ${n}.spend_mandates(allowance_id, created_at);
 CREATE OR REPLACE FUNCTION ${n}.assert_transaction_balanced() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE entry_total bigint;
 BEGIN
