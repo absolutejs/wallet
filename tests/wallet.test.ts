@@ -32,6 +32,13 @@ describe("double-entry wallet", () => {
     expect((await wallet.snapshot("platform:revenue"))?.balanceCents).toBe(100);
   });
 
+  test("a reservation cannot authorize a different amount", async () => {
+    const { wallet } = await setup();
+    await wallet.fund({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 1_000, idempotencyKey: "fund-mismatch", paymentRef: "pi" });
+    const bid = await wallet.reserve({ accountId: "wallet:buyer", amountCents: 500, idempotencyKey: "bid-mismatch", purpose: "offer" });
+    await expect(wallet.settleSale({ buyerAccountId: "wallet:buyer", sellerAccountId: "wallet:seller", revenueAccountId: "platform:revenue", grossCents: 600, idempotencyKey: "sale-mismatch", assetId: "pet:x", reservationId: bid.id })).rejects.toThrow(/exactly cover/);
+  });
+
   test("a guaranteed trade charges each participant exactly 25 cents", async () => {
     const { wallet } = await setup();
     for (const owner of ["buyer", "seller"]) await wallet.fund({ accountId: `wallet:${owner}`, clearingAccountId: "platform:clearing", amountCents: 500, idempotencyKey: `fund:${owner}`, paymentRef: owner });

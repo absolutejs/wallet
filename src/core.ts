@@ -57,6 +57,8 @@ export interface WalletStore {
   account(id: string): Promise<WalletAccount | null>;
   snapshot(id: string): Promise<WalletSnapshot | null>;
   history(id: string, limit?: number): Promise<WalletTransaction[]>;
+  transactionByIdempotencyKey(key: string): Promise<WalletTransaction | null>;
+  reservation(id: string): Promise<WalletReservation | null>;
   commit(input: Omit<WalletTransaction, "id" | "createdAt"> & { captures?: string[] }): Promise<WalletTransaction>;
   reserve(input: Omit<WalletReservation, "id" | "status" | "createdAt"> & { idempotencyKey: string }): Promise<WalletReservation>;
   release(reservationId: string): Promise<WalletReservation>;
@@ -92,6 +94,8 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
   history: (accountId: string, limit?: number) => store.history(accountId, limit),
 
   async fund(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; paymentRef: string }) {
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) return retry;
     if (cents(input.amountCents) < policy.minimumFundingCents) throw new Error("wallet: funding is below the configured minimum");
     const current = await store.snapshot(input.accountId);
     if (!current) throw new Error("wallet: account not found");
@@ -108,11 +112,17 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
   },
 
   async settleSale(input: { buyerAccountId: string; sellerAccountId: string; revenueAccountId: string; grossCents: Cents; idempotencyKey: string; assetId: string; reservationId?: string }) {
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) return retry;
     if (input.grossCents > policy.maximumTransactionCents) throw new Error("wallet: maximum transaction would be exceeded");
     const fee = sellerFee(input.grossCents, policy.sellerFeeBps);
     const seller = await store.snapshot(input.sellerAccountId);
     if (!seller) throw new Error("wallet: seller account not found");
     if (seller.balanceCents + fee.sellerNetCents > policy.maximumBalanceCents) throw new Error("wallet: seller maximum balance would be exceeded");
+    if (input.reservationId) {
+      const reservation = await store.reservation(input.reservationId);
+      if (!reservation || reservation.status !== "active" || reservation.accountId !== input.buyerAccountId || reservation.amountCents !== input.grossCents) throw new Error("wallet: reservation does not exactly cover this buyer and sale");
+    }
     return store.commit({ idempotencyKey: input.idempotencyKey, kind: "sale", metadata: { assetId: input.assetId }, ...(input.reservationId ? { captures: [input.reservationId] } : {}), entries: [
       { accountId: input.buyerAccountId, amountCents: -fee.grossCents },
       { accountId: input.sellerAccountId, amountCents: fee.sellerNetCents },
@@ -121,6 +131,8 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
   },
 
   async chargeTradeFees(input: { accountIds: string[]; revenueAccountId: string; idempotencyKey: string; tradeId: string }) {
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) return retry;
     if (input.accountIds.length === 0) throw new Error("wallet: trade needs at least one paying participant");
     if (new Set(input.accountIds).size !== input.accountIds.length) throw new Error("wallet: each trade participant may be charged only once");
     const total = policy.tradeFeeCents * input.accountIds.length;
