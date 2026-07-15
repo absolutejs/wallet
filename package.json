@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",
@@ -38,7 +38,7 @@
     "check:package": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "@absolutejs/agency": "^0.2.0",
+    "@absolutejs/agency": "^0.3.0",
     "@absolutejs/manifest": "^0.2.0",
     "@sinclair/typebox": "^0.34.0"
   },
