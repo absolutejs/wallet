@@ -1,12 +1,12 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/absolutejs/wallet.git"
+    "url": "git+https://github.com/absolutejs/wallet.git"
   },
   "homepage": "https://github.com/absolutejs/wallet",
   "main": "./dist/index.js",
@@ -38,7 +38,7 @@
     "check:package": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "@absolutejs/agency": "^0.3.0",
+    "@absolutejs/agency": "^0.5.0",
     "@absolutejs/manifest": "^0.2.0",
     "@sinclair/typebox": "^0.34.0"
   },
