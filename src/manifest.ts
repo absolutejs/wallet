@@ -6,6 +6,23 @@ const tool = toolFactory<AgentWallet>();
 
 export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
   contract: 2,
+  discovery: {
+    audiences: ["agent-hosts", "commerce-platforms"],
+    intents: [
+      "give an agent a spending allowance",
+      "authorize agent purchases",
+      "audit agent spending",
+    ],
+    keywords: [
+      "agents",
+      "wallet",
+      "allowances",
+      "mandates",
+      "budgets",
+      "payments",
+    ],
+    protocols: ["AbsoluteJS Agency"],
+  },
   identity: {
     accent: "#16a34a",
     category: "commerce",
