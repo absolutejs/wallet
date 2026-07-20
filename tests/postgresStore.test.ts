@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   createPostgresAgentWalletStore,
+  createPostgresWalletStore,
   walletAgentTenantInventoryPostgresSchemaSql,
   walletPostgresSchemaSql,
   type WalletSqlClient,
@@ -57,5 +58,41 @@ describe("PostgreSQL agent wallet store", () => {
     const sql = walletAgentTenantInventoryPostgresSchemaSql();
     expect(sql).toContain("ADD COLUMN IF NOT EXISTS tenant_id");
     expect(sql).toContain("wallet_agent_allowances_tenant_idx");
+  });
+
+  test("publishes the production core wallet adapter", async () => {
+    const calls: string[] = [];
+    const account = {
+      allow_negative: false,
+      created_at: "2026-07-20T00:00:00.000Z",
+      currency: "USD",
+      id: "wallet:project-1",
+      owner_id: "project-1",
+      status: "active" as const,
+    };
+    const client: WalletSqlClient = {
+      query: async <Row>(sql: string) => {
+        calls.push(sql);
+        return {
+          rowCount: sql.startsWith("INSERT") ? 1 : 0,
+          rows: (sql.startsWith("SELECT id,owner_id")
+            ? [account]
+            : []) as Row[],
+        };
+      },
+      transaction: async (run) => run(client),
+    };
+    const store = createPostgresWalletStore({ client });
+    const created = await store.createAccount({
+      createdAt: account.created_at,
+      currency: "USD",
+      id: account.id,
+      ownerId: account.owner_id,
+      status: "active",
+    });
+    expect(created.id).toBe(account.id);
+    expect(
+      calls.some((sql) => sql.includes("ON CONFLICT (id) DO NOTHING")),
+    ).toBe(true);
   });
 });
