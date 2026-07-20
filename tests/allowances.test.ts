@@ -58,6 +58,7 @@ const setup = async (policy?: PolicyDecisionPoint) => {
     perTransactionLimitCents: 1_500,
     requireRefundable: true,
     status: "active",
+    tenantId: "project-1",
     weeklyLimitCents: 3_000,
   });
   const agency = policy
@@ -113,6 +114,19 @@ const capture = (mandateId: string, over: Record<string, unknown> = {}) => ({
 });
 
 describe("agent spend mandates", () => {
+  test("lists allowances and mandates through tenant-fenced inventory", async () => {
+    const { agentStore, agentWallet } = await setup();
+    const { mandate } = await agentWallet.requestSpend(request());
+    expect(
+      await agentStore.listAllowances({ limit: 10, tenantId: "project-1" }),
+    ).toHaveLength(1);
+    expect(
+      await agentStore.listAllowances({ limit: 10, tenantId: "project-2" }),
+    ).toHaveLength(0);
+    expect(
+      await agentStore.listMandates({ limit: 10, tenantId: "project-1" }),
+    ).toEqual([mandate]);
+  });
   test("reserves, exactly captures, prevents replay, and refunds", async () => {
     const { agentWallet, wallet } = await setup();
     const { mandate } = await agentWallet.requestSpend(request());

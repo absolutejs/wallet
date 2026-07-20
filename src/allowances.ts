@@ -24,6 +24,7 @@ export type AgentAllowance = {
   perTransactionLimitCents: number;
   requireRefundable?: boolean;
   status: AgentAllowanceStatus;
+  tenantId: string;
   validFrom?: string;
   validUntil?: string;
   weeklyLimitCents: number;
@@ -65,6 +66,19 @@ export type SpendMandate = AgentSpendRequest & {
 
 export type AgentWalletStore = {
   allowance: (allowanceId: string) => Promise<AgentAllowance | null>;
+  listAllowances: (input: {
+    agentId?: string;
+    limit: number;
+    ownerId?: string;
+    status?: AgentAllowanceStatus;
+    tenantId?: string;
+  }) => Promise<AgentAllowance[]>;
+  listMandates: (input: {
+    allowanceId?: string;
+    limit: number;
+    status?: SpendMandateStatus;
+    tenantId?: string;
+  }) => Promise<SpendMandate[]>;
   mandate: (mandateId: string) => Promise<SpendMandate | null>;
   mandateByIdempotencyKey: (
     allowanceId: string,
@@ -201,6 +215,30 @@ export const createMemoryAgentWalletStore = (): AgentWalletStore => {
 
   return {
     allowance: async (allowanceId) => allowances.get(allowanceId) ?? null,
+    listAllowances: async (input) =>
+      [...allowances.values()]
+        .filter(
+          (allowance) =>
+            (!input.tenantId || allowance.tenantId === input.tenantId) &&
+            (!input.ownerId || allowance.ownerId === input.ownerId) &&
+            (!input.agentId || allowance.agentId === input.agentId) &&
+            (!input.status || allowance.status === input.status),
+        )
+        .slice(0, input.limit)
+        .map((allowance) => structuredClone(allowance)),
+    listMandates: async (input) =>
+      [...mandates.values()]
+        .filter((mandate) => {
+          const allowance = allowances.get(mandate.allowanceId);
+          return (
+            allowance !== undefined &&
+            (!input.tenantId || allowance.tenantId === input.tenantId) &&
+            (!input.allowanceId || mandate.allowanceId === input.allowanceId) &&
+            (!input.status || mandate.status === input.status)
+          );
+        })
+        .slice(0, input.limit)
+        .map((mandate) => structuredClone(mandate)),
     mandate: async (mandateId) => mandates.get(mandateId) ?? null,
     mandateByIdempotencyKey: async (allowanceId, key) =>
       [...mandates.values()].find(
