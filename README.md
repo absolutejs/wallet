@@ -18,6 +18,10 @@ seller-paid market fee, and a $0.25 fee per direct-trade participant.
 The package does not process cards, custody crypto, or promise cash redemption.
 Payment adapters fund the clearing side of a journal entry after a verified webhook;
 applications provide a transactional persistent `WalletStore` for production.
+For Bun/PostgreSQL hosts, pass one `createBunSqlWalletClient(sql)` instance to
+both PostgreSQL stores. Its async transaction context makes nested core Wallet
+operations join the allowance transaction, including with a one-connection
+pool.
 
 ## Agent allowances
 
