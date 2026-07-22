@@ -117,4 +117,18 @@ describe("PostgreSQL agent wallet store", () => {
 	expect(lock?.sql).not.toContain("ANY(");
 	expect(lock?.parameters).toEqual(["wallet:buyer", "wallet:clearing"]);
   });
+
+  test("queries account inventory by a bounded prefix", async () => {
+	const calls: Array<{ parameters: readonly unknown[]; sql: string }> = [];
+	const client: WalletSqlClient = {
+		query: async <Row>(sql: string, parameters: readonly unknown[] = []) => {
+			calls.push({ parameters, sql });
+			return { rowCount: 0, rows: [] as Row[] };
+		},
+		transaction: async (run) => run(client),
+	};
+	await createPostgresWalletStore({ client }).listAccounts({ limit: 25, prefix: "wallet:project:" });
+	expect(calls[0]?.sql).toContain("id LIKE $1 || '%'");
+	expect(calls[0]?.parameters).toEqual(["wallet:project:", 25]);
+  });
 });

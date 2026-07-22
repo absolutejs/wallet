@@ -77,6 +77,7 @@ export interface WalletStore {
   account(id: string): Promise<WalletAccount | null>;
   snapshot(id: string): Promise<WalletSnapshot | null>;
   history(id: string, limit?: number): Promise<WalletTransaction[]>;
+  listAccounts(input: { limit: number; prefix?: string }): Promise<WalletSnapshot[]>;
   transactionByIdempotencyKey(key: string): Promise<WalletTransaction | null>;
   reservation(id: string): Promise<WalletReservation | null>;
   commit(input: Omit<WalletTransaction, "id" | "createdAt"> & { captures?: string[] }): Promise<WalletTransaction>;
@@ -114,6 +115,7 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
   createAccount: async (ownerId: string, id = `wallet:${ownerId}`) => store.createAccount({ id, ownerId, currency: policy.currency, status: "active", createdAt: new Date().toISOString() }),
   snapshot: (accountId: string) => store.snapshot(accountId),
   history: (accountId: string, limit?: number) => store.history(accountId, limit),
+  listAccounts: (input: { limit: number; prefix?: string }) => store.listAccounts(input),
 
   async fund(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; paymentRef: string }) {
     const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);

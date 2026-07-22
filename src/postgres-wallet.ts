@@ -227,6 +227,15 @@ export const createPostgresWalletStore = ({
         )
       ).filter((value): value is WalletTransaction => value !== null);
     },
+    listAccounts: async ({ limit, prefix }) => {
+      const rows = await client.query<{ id: string }>(
+        `SELECT id FROM ${n}.accounts WHERE ($1::text IS NULL OR id LIKE $1 || '%') ORDER BY created_at DESC LIMIT $2`,
+        [prefix ?? null, limit],
+      );
+      return (
+        await Promise.all(rows.rows.map(({ id }) => snapshot(client, id)))
+      ).filter((value): value is WalletSnapshot => value !== null);
+    },
     transactionByIdempotencyKey: (key) =>
       loadTransaction(client, "idempotency_key", key),
     reservation: (id) => loadReservation(client, id),

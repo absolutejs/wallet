@@ -68,6 +68,12 @@ describe("double-entry wallet", () => {
     await expect(wallet.applyFundingEvent({ ...input, amountCents: 1_001 })).rejects.toThrow(/different input/);
   });
 
+  test("lists funded accounts independently of agent allowances", async () => {
+    const { wallet } = await setup();
+    expect(await wallet.listAccounts({ limit: 10, prefix: "wallet:" })).toHaveLength(2);
+    expect(await wallet.listAccounts({ limit: 10, prefix: "missing:" })).toHaveLength(0);
+  });
+
   test("seller-paid 10% sale captures a reserved bid atomically", async () => {
     const { wallet } = await setup();
     await wallet.fund({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 1_000, idempotencyKey: "fund", paymentRef: "pi" });

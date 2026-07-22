@@ -86,6 +86,7 @@ export const createMemoryWalletStore = (): WalletStore => {
     account: async (id) => accounts.get(id) ?? null,
     snapshot: async (id) => snapshot(id),
     history: async (id, limit = 100) => [...transactions.values()].filter((tx) => tx.entries.some((entry) => entry.accountId === id)).slice(-limit).reverse(),
+    listAccounts: async ({ limit, prefix }) => [...accounts.keys()].filter((id) => !prefix || id.startsWith(prefix)).slice(0, limit).map((id) => snapshot(id)!),
     transactionByIdempotencyKey: async (key) => { const id = ids.get(key); return id ? transactions.get(id) ?? null : null; },
     reservation: async (id) => reservations.get(id) ?? null,
     commit: (input) => locked(() => {
