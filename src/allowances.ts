@@ -515,6 +515,7 @@ export const createAgentWallet = ({
     cartHash: string;
     clearingAccountId: string;
     currency: string;
+    effectId: string;
     mandateId: string;
     merchantId: string;
     paymentRef: string;
@@ -548,6 +549,7 @@ export const createAgentWallet = ({
         accountId: allowance.accountId,
         amountCents: mandate.amountCents,
         clearingAccountId: input.clearingAccountId,
+        effectId: input.effectId,
         idempotencyKey: `capture-external:${mandate.idempotencyKey}`,
         paymentRef: input.paymentRef,
         provider: input.provider,
@@ -616,6 +618,7 @@ export const createAgentWallet = ({
 
   const refundExternalSpend = async (input: {
     clearingAccountId: string;
+    effectId: string;
     mandateId: string;
     paymentRef: string;
     provider: string;
@@ -642,6 +645,7 @@ export const createAgentWallet = ({
       accountId: allowance.accountId,
       amountCents: mandate.amountCents,
       clearingAccountId: input.clearingAccountId,
+      effectId: input.effectId,
       idempotencyKey: `refund-external:${mandate.idempotencyKey}`,
       originalPurchaseId: purchase.id,
       paymentRef: input.paymentRef,

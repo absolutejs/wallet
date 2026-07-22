@@ -172,7 +172,7 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
     ] });
   },
 
-  async captureExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; paymentRef: string; provider: string; reservationId: string }) {
+  async captureExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; effectId: string; idempotencyKey: string; paymentRef: string; provider: string; reservationId: string }) {
     cents(input.amountCents, "external spend");
     if (input.amountCents === 0) throw new Error("wallet: external spend must be positive");
     if (input.amountCents > policy.maximumTransactionCents) throw new Error("wallet: maximum transaction would be exceeded");
@@ -184,6 +184,7 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
     if (retry) {
       if (
         retry.kind !== "purchase" ||
+        retry.metadata.effectId !== input.effectId ||
         retry.metadata.paymentRef !== input.paymentRef ||
         retry.metadata.provider !== input.provider ||
         JSON.stringify(retry.entries) !== JSON.stringify(expectedEntries)
@@ -199,11 +200,11 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
       entries: expectedEntries,
       idempotencyKey: input.idempotencyKey,
       kind: "purchase",
-      metadata: { paymentRef: input.paymentRef, provider: input.provider },
+      metadata: { effectId: input.effectId, paymentRef: input.paymentRef, provider: input.provider },
     });
   },
 
-  async refundExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; originalPurchaseId: string; paymentRef: string; provider: string }) {
+  async refundExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; effectId: string; idempotencyKey: string; originalPurchaseId: string; paymentRef: string; provider: string }) {
     cents(input.amountCents, "external refund");
     if (input.amountCents === 0) throw new Error("wallet: external refund must be positive");
     const expectedEntries = [
@@ -214,6 +215,7 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
     if (retry) {
       if (
         retry.kind !== "refund" ||
+        retry.metadata.effectId !== input.effectId ||
         retry.metadata.originalPurchaseId !== input.originalPurchaseId ||
         retry.metadata.paymentRef !== input.paymentRef ||
         retry.metadata.provider !== input.provider ||
@@ -227,6 +229,7 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
       idempotencyKey: input.idempotencyKey,
       kind: "refund",
       metadata: {
+        effectId: input.effectId,
         originalPurchaseId: input.originalPurchaseId,
         paymentRef: input.paymentRef,
         provider: input.provider,

@@ -179,6 +179,7 @@ describe("agent spend mandates", () => {
       cartHash: "cart-1",
       clearingAccountId: "platform:clearing",
       currency: "USD",
+      effectId: "effect-1",
       mandateId: mandate.mandateId,
       merchantId: "merchant-1",
       paymentRef: "provider-resource-1",
@@ -187,8 +188,8 @@ describe("agent spend mandates", () => {
     const captured = await agentWallet.captureExternalSpend(input);
     expect((await agentWallet.captureExternalSpend(input)).transaction.id).toBe(captured.transaction.id);
     await expect(agentWallet.captureExternalSpend({ ...input, paymentRef: "changed" })).rejects.toThrow(/different input/);
-    const refund = await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" });
-    expect((await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" })).transaction.id).toBe(refund.transaction.id);
+    const refund = await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", effectId: "effect-1", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" });
+    expect((await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", effectId: "effect-1", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" })).transaction.id).toBe(refund.transaction.id);
     expect((await wallet.snapshot("wallet:buyer"))?.balanceCents).toBe(5_000);
   });
 
@@ -199,6 +200,7 @@ describe("agent spend mandates", () => {
     await expect(
       agentWallet.refundExternalSpend({
         clearingAccountId: "platform:clearing",
+        effectId: "effect-1",
         mandateId: mandate.mandateId,
         paymentRef: "provider-refund-1",
         provider: "provider.example",
