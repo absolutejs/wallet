@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",

@@ -115,6 +115,11 @@ export type AgentWalletOptions = {
   wallet: Wallet;
 };
 
+export type AgentSpendRequestOptions = {
+  /** A stable identifier selected before an effect envelope is digested. */
+  mandateId?: string;
+};
+
 const terminalSpend = new Set<SpendMandateStatus>([
   "cancelled",
   "expired",
@@ -355,12 +360,21 @@ export const createAgentWallet = ({
 
   const requestSpendUnlocked = async (
     request: AgentSpendRequest,
+    options: AgentSpendRequestOptions = {},
   ): Promise<SpendRequestResult> => {
     const retry = await store.mandateByIdempotencyKey(
       request.allowanceId,
       request.idempotencyKey,
     );
-    if (retry) return { mandate: retry };
+    if (retry) {
+      if (options.mandateId && retry.mandateId !== options.mandateId)
+        throw new Error(
+          "wallet: spend idempotency key belongs to another mandate",
+        );
+      return { mandate: retry };
+    }
+    if (options.mandateId !== undefined && !options.mandateId.trim())
+      throw new Error("wallet: mandate identity must be non-empty");
     const allowance = await store.allowance(request.allowanceId);
     if (!allowance) throw new Error("wallet: allowance not found");
     const mandates = await store.mandatesForAllowance(request.allowanceId);
@@ -381,7 +395,7 @@ export const createAgentWallet = ({
         ...request,
         bindingDigest,
         createdAt: now().toISOString(),
-        mandateId: `mandate:${crypto.randomUUID()}`,
+        mandateId: options.mandateId ?? `mandate:${crypto.randomUUID()}`,
         reservationId: reservation.id,
         signature: await signer.sign(bindingDigest),
         status: "active",
@@ -432,9 +446,12 @@ export const createAgentWallet = ({
     }
   };
 
-  const requestSpend = (request: AgentSpendRequest) =>
+  const requestSpend = (
+    request: AgentSpendRequest,
+    options?: AgentSpendRequestOptions,
+  ) =>
     store.withAllowanceLock(request.allowanceId, () =>
-      requestSpendUnlocked(request),
+      requestSpendUnlocked(request, options),
     );
 
   const loadValidMandate = async (mandateId: string) => {
@@ -559,7 +576,9 @@ export const createAgentWallet = ({
     if (mandate.status === "captured") {
       transaction = await executeSettlement();
       if (transaction.id !== mandate.capturedTransactionId)
-        throw new Error("wallet: captured mandate refers to another transaction");
+        throw new Error(
+          "wallet: captured mandate refers to another transaction",
+        );
     } else if (mandate.agencyActionId) {
       if (!agency) throw new Error("wallet: agency approval is not configured");
       const lease = await agency.enforcement.issueLease(mandate.agencyActionId);
