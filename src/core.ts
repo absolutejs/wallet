@@ -172,6 +172,68 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
     ] });
   },
 
+  async captureExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; paymentRef: string; provider: string; reservationId: string }) {
+    cents(input.amountCents, "external spend");
+    if (input.amountCents === 0) throw new Error("wallet: external spend must be positive");
+    if (input.amountCents > policy.maximumTransactionCents) throw new Error("wallet: maximum transaction would be exceeded");
+    const expectedEntries = [
+      { accountId: input.accountId, amountCents: -input.amountCents },
+      { accountId: input.clearingAccountId, amountCents: input.amountCents },
+    ];
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) {
+      if (
+        retry.kind !== "purchase" ||
+        retry.metadata.paymentRef !== input.paymentRef ||
+        retry.metadata.provider !== input.provider ||
+        JSON.stringify(retry.entries) !== JSON.stringify(expectedEntries)
+      )
+        throw new Error("wallet: external spend idempotency key was reused with different input");
+      return retry;
+    }
+    const reservation = await store.reservation(input.reservationId);
+    if (!reservation || reservation.status !== "active" || reservation.accountId !== input.accountId || reservation.amountCents !== input.amountCents)
+      throw new Error("wallet: reservation does not exactly cover this external spend");
+    return store.commit({
+      captures: [input.reservationId],
+      entries: expectedEntries,
+      idempotencyKey: input.idempotencyKey,
+      kind: "purchase",
+      metadata: { paymentRef: input.paymentRef, provider: input.provider },
+    });
+  },
+
+  async refundExternalSpend(input: { accountId: string; clearingAccountId: string; amountCents: Cents; idempotencyKey: string; originalPurchaseId: string; paymentRef: string; provider: string }) {
+    cents(input.amountCents, "external refund");
+    if (input.amountCents === 0) throw new Error("wallet: external refund must be positive");
+    const expectedEntries = [
+      { accountId: input.accountId, amountCents: input.amountCents },
+      { accountId: input.clearingAccountId, amountCents: -input.amountCents },
+    ];
+    const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
+    if (retry) {
+      if (
+        retry.kind !== "refund" ||
+        retry.metadata.originalPurchaseId !== input.originalPurchaseId ||
+        retry.metadata.paymentRef !== input.paymentRef ||
+        retry.metadata.provider !== input.provider ||
+        JSON.stringify(retry.entries) !== JSON.stringify(expectedEntries)
+      )
+        throw new Error("wallet: external refund idempotency key was reused with different input");
+      return retry;
+    }
+    return store.commit({
+      entries: expectedEntries,
+      idempotencyKey: input.idempotencyKey,
+      kind: "refund",
+      metadata: {
+        originalPurchaseId: input.originalPurchaseId,
+        paymentRef: input.paymentRef,
+        provider: input.provider,
+      },
+    });
+  },
+
   async chargeTradeFees(input: { accountIds: string[]; revenueAccountId: string; idempotencyKey: string; tradeId: string }) {
     const retry = await store.transactionByIdempotencyKey(input.idempotencyKey);
     if (retry) return retry;

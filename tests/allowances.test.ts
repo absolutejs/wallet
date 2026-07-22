@@ -171,6 +171,41 @@ describe("agent spend mandates", () => {
     ).toHaveLength(1);
   });
 
+  test("captures a provider effect exactly once and refunds it exactly once", async () => {
+    const { agentWallet, wallet } = await setup();
+    const { mandate } = await agentWallet.requestSpend(request());
+    const input = {
+      amountCents: 400,
+      cartHash: "cart-1",
+      clearingAccountId: "platform:clearing",
+      currency: "USD",
+      mandateId: mandate.mandateId,
+      merchantId: "merchant-1",
+      paymentRef: "provider-resource-1",
+      provider: "provider.example",
+    };
+    const captured = await agentWallet.captureExternalSpend(input);
+    expect((await agentWallet.captureExternalSpend(input)).transaction.id).toBe(captured.transaction.id);
+    await expect(agentWallet.captureExternalSpend({ ...input, paymentRef: "changed" })).rejects.toThrow(/different input/);
+    const refund = await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" });
+    expect((await agentWallet.refundExternalSpend({ clearingAccountId: "platform:clearing", mandateId: mandate.mandateId, paymentRef: "provider-refund-1", provider: "provider.example" })).transaction.id).toBe(refund.transaction.id);
+    expect((await wallet.snapshot("wallet:buyer"))?.balanceCents).toBe(5_000);
+  });
+
+  test("does not route an internal sale through the external refund journal", async () => {
+    const { agentWallet } = await setup();
+    const { mandate } = await agentWallet.requestSpend(request());
+    await agentWallet.captureSpend(capture(mandate.mandateId));
+    await expect(
+      agentWallet.refundExternalSpend({
+        clearingAccountId: "platform:clearing",
+        mandateId: mandate.mandateId,
+        paymentRef: "provider-refund-1",
+        provider: "provider.example",
+      }),
+    ).rejects.toThrow("not externally captured");
+  });
+
   test("pauses above-threshold spending for agency approval", async () => {
     const policy: PolicyDecisionPoint = {
       evaluate: ({ approval, now }) =>

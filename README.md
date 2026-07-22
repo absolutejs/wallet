@@ -32,6 +32,13 @@ Capture cannot proceed until current policy accepts the approval, and it then
 executes through a single-use agency lease. The model never receives a raw
 balance mutation tool.
 
+External provider effects use `captureExternalSpend()` only after the provider
+has succeeded or conclusive reconciliation evidence proves it succeeded. The
+purchase atomically captures the exact reservation into a provider clearing
+account and binds retries to the provider and payment reference. A successfully
+compensated provider effect uses `refundExternalSpend()` to reverse that exact
+journal boundary; both operations are safe to retry after a host crash.
+
 The package also exports structural AP2 intent/payment mandate adapters and a
 UCP extension payload. Those evolving protocols remain adapters; the wallet's
 allowance and accounting contracts do not depend on them.

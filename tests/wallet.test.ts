@@ -92,6 +92,18 @@ describe("double-entry wallet", () => {
     await expect(wallet.settleSale({ buyerAccountId: "wallet:buyer", sellerAccountId: "wallet:seller", revenueAccountId: "platform:revenue", grossCents: 600, idempotencyKey: "sale-mismatch", assetId: "pet:x", reservationId: bid.id })).rejects.toThrow(/exactly cover/);
   });
 
+  test("captures and refunds an external spend with exact replay binding", async () => {
+    const { wallet } = await setup();
+    await wallet.fund({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 1_000, idempotencyKey: "external-fund", paymentRef: "pi" });
+    const reservation = await wallet.reserve({ accountId: "wallet:buyer", amountCents: 400, idempotencyKey: "external-reserve", purpose: "provider:effect-1" });
+    const purchase = await wallet.captureExternalSpend({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 400, idempotencyKey: "external-capture", paymentRef: "provider-resource-1", provider: "provider.example", reservationId: reservation.id });
+    expect((await wallet.captureExternalSpend({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 400, idempotencyKey: "external-capture", paymentRef: "provider-resource-1", provider: "provider.example", reservationId: reservation.id })).id).toBe(purchase.id);
+    await expect(wallet.captureExternalSpend({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 400, idempotencyKey: "external-capture", paymentRef: "changed", provider: "provider.example", reservationId: reservation.id })).rejects.toThrow(/different input/);
+    const refund = await wallet.refundExternalSpend({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 400, idempotencyKey: "external-refund", originalPurchaseId: purchase.id, paymentRef: "provider-refund-1", provider: "provider.example" });
+    expect((await wallet.refundExternalSpend({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 400, idempotencyKey: "external-refund", originalPurchaseId: purchase.id, paymentRef: "provider-refund-1", provider: "provider.example" })).id).toBe(refund.id);
+    expect((await wallet.snapshot("wallet:buyer"))?.balanceCents).toBe(1_000);
+  });
+
   test("a guaranteed trade charges each participant exactly 25 cents", async () => {
     const { wallet } = await setup();
     for (const owner of ["buyer", "seller"]) await wallet.fund({ accountId: `wallet:${owner}`, clearingAccountId: "platform:clearing", amountCents: 500, idempotencyKey: `fund:${owner}`, paymentRef: owner });

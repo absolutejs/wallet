@@ -510,6 +510,77 @@ export const createAgentWallet = ({
     return { mandate: captured, transaction };
   };
 
+  const captureExternalSpend = async (input: {
+    amountCents: number;
+    cartHash: string;
+    clearingAccountId: string;
+    currency: string;
+    mandateId: string;
+    merchantId: string;
+    paymentRef: string;
+    provider: string;
+  }) => {
+    const mandate = await store.mandate(input.mandateId);
+    if (!mandate) throw new Error("wallet: spend mandate not found");
+    if (!["active", "pending_approval", "captured"].includes(mandate.status))
+      throw new Error("wallet: spend mandate is not capturable");
+    if (new Date(mandate.expiresAt) <= now() && mandate.status !== "captured")
+      throw new Error("wallet: spend mandate has expired");
+    const expected = await mandateBinding(mandate);
+    if (
+      expected !== mandate.bindingDigest ||
+      !(await signer.verify(expected, mandate.signature))
+    )
+      throw new Error("wallet: invalid spend mandate signature");
+    if (
+      input.amountCents !== mandate.amountCents ||
+      input.cartHash !== mandate.cartHash ||
+      input.currency !== mandate.currency ||
+      input.merchantId !== mandate.merchantId
+    )
+      throw new Error(
+        "wallet: external capture does not exactly match the spend mandate",
+      );
+    const allowance = await store.allowance(mandate.allowanceId);
+    if (!allowance) throw new Error("wallet: allowance not found");
+    const executeSettlement = () =>
+      wallet.captureExternalSpend({
+        accountId: allowance.accountId,
+        amountCents: mandate.amountCents,
+        clearingAccountId: input.clearingAccountId,
+        idempotencyKey: `capture-external:${mandate.idempotencyKey}`,
+        paymentRef: input.paymentRef,
+        provider: input.provider,
+        reservationId: mandate.reservationId,
+      });
+    let transaction: WalletTransaction;
+    if (mandate.status === "captured") {
+      transaction = await executeSettlement();
+      if (transaction.id !== mandate.capturedTransactionId)
+        throw new Error("wallet: captured mandate refers to another transaction");
+    } else if (mandate.agencyActionId) {
+      if (!agency) throw new Error("wallet: agency approval is not configured");
+      const lease = await agency.enforcement.issueLease(mandate.agencyActionId);
+      transaction = (
+        await agency.enforcement.execute({
+          executor: `wallet:${mandate.merchantId}`,
+          leaseId: lease.leaseId,
+          run: executeSettlement,
+        })
+      ).result;
+    } else {
+      transaction = await executeSettlement();
+    }
+    const captured = {
+      ...mandate,
+      capturedTransactionId: transaction.id,
+      status: "captured" as const,
+    };
+    await store.saveMandate(captured);
+
+    return { mandate: captured, transaction };
+  };
+
   const cancelSpend = async (mandateId: string) => {
     const mandate = await loadValidMandate(mandateId);
     const reservation = await wallet.store.release(mandate.reservationId);
@@ -543,10 +614,51 @@ export const createAgentWallet = ({
     return { mandate: refunded, transaction };
   };
 
+  const refundExternalSpend = async (input: {
+    clearingAccountId: string;
+    mandateId: string;
+    paymentRef: string;
+    provider: string;
+  }) => {
+    const mandate = await store.mandate(input.mandateId);
+    if (
+      !mandate ||
+      !["captured", "refunded"].includes(mandate.status) ||
+      !mandate.capturedTransactionId
+    )
+      throw new Error("wallet: mandate is not externally captured");
+    const allowance = await store.allowance(mandate.allowanceId);
+    if (!allowance) throw new Error("wallet: allowance not found");
+    const purchase = await wallet.store.transactionByIdempotencyKey(
+      `capture-external:${mandate.idempotencyKey}`,
+    );
+    if (
+      !purchase ||
+      purchase.kind !== "purchase" ||
+      purchase.id !== mandate.capturedTransactionId
+    )
+      throw new Error("wallet: mandate is not externally captured");
+    const transaction = await wallet.refundExternalSpend({
+      accountId: allowance.accountId,
+      amountCents: mandate.amountCents,
+      clearingAccountId: input.clearingAccountId,
+      idempotencyKey: `refund-external:${mandate.idempotencyKey}`,
+      originalPurchaseId: purchase.id,
+      paymentRef: input.paymentRef,
+      provider: input.provider,
+    });
+    const refunded = { ...mandate, status: "refunded" as const };
+    await store.saveMandate(refunded);
+
+    return { mandate: refunded, transaction };
+  };
+
   return {
     cancelSpend,
+    captureExternalSpend,
     captureSpend,
     quoteSpend,
+    refundExternalSpend,
     refundSpend,
     requestSpend,
     store,
