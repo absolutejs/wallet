@@ -13,6 +13,8 @@ const safe = (value: string) => {
     throw new Error("wallet: PostgreSQL namespace must be a simple identifier");
   return value;
 };
+const placeholders = (count: number, start = 1) =>
+  Array.from({ length: count }, (_, index) => `$${start + index}`).join(",");
 const iso = (value: Date | string) =>
   value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 const cents = (value: bigint | number | string) => {
@@ -156,8 +158,8 @@ export const createPostgresWalletStore = ({
         }
         const accountIds = [input.accountId, input.clearingAccountId];
         const locked = await db.query<AccountRow>(
-          `SELECT id,owner_id,currency,status,allow_negative,created_at FROM ${n}.accounts WHERE id=ANY($1::text[]) FOR UPDATE`,
-          [accountIds],
+          `SELECT id,owner_id,currency,status,allow_negative,created_at FROM ${n}.accounts WHERE id IN (${placeholders(accountIds.length)}) FOR UPDATE`,
+          accountIds,
         );
         const account = locked.rows.find((row) => row.id === input.accountId);
         const clearing = locked.rows.find((row) => row.id === input.clearingAccountId);
@@ -239,8 +241,8 @@ export const createPostgresWalletStore = ({
         assertBalanced(input.entries);
         const ids = [...new Set(input.entries.map((entry) => entry.accountId))];
         const locked = await db.query<AccountRow>(
-          `SELECT id,owner_id,currency,status,allow_negative,created_at FROM ${n}.accounts WHERE id=ANY($1::text[]) FOR UPDATE`,
-          [ids],
+          `SELECT id,owner_id,currency,status,allow_negative,created_at FROM ${n}.accounts WHERE id IN (${placeholders(ids.length)}) FOR UPDATE`,
+          ids,
         );
         if (locked.rows.length !== ids.length)
           throw new Error("wallet: account not found");
@@ -255,8 +257,8 @@ export const createPostgresWalletStore = ({
             const current = await snapshot(db, entry.accountId);
             const held = captures.length
               ? await db.query<{ amount_cents: bigint | number | string }>(
-                  `SELECT amount_cents FROM ${n}.reservations WHERE id=ANY($1::text[]) AND account_id=$2 AND status='active' FOR UPDATE`,
-                  [captures, entry.accountId],
+                  `SELECT amount_cents FROM ${n}.reservations WHERE id IN (${placeholders(captures.length)}) AND account_id=$${captures.length + 1} AND status='active' FOR UPDATE`,
+                  [...captures, entry.accountId],
                 )
               : { rowCount: 0, rows: [] };
             if (
@@ -292,8 +294,8 @@ export const createPostgresWalletStore = ({
           );
         if (captures.length) {
           const updated = await db.query(
-            `UPDATE ${n}.reservations SET status='captured',capture_transaction_id=$1 WHERE id=ANY($2::text[]) AND status='active' RETURNING id`,
-            [value.id, captures],
+            `UPDATE ${n}.reservations SET status='captured',capture_transaction_id=$1 WHERE id IN (${placeholders(captures.length, 2)}) AND status='active' RETURNING id`,
+            [value.id, ...captures],
           );
           if (updated.rowCount !== captures.length)
             throw new Error("wallet: reservation is not active");

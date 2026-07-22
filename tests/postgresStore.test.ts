@@ -95,4 +95,26 @@ describe("PostgreSQL agent wallet store", () => {
       calls.some((sql) => sql.includes("ON CONFLICT (id) DO NOTHING")),
     ).toBe(true);
   });
+
+  test("uses scalar account bindings compatible with Bun SQL", async () => {
+	const calls: Array<{ parameters: readonly unknown[]; sql: string }> = [];
+	const rows = [
+		{ allow_negative: false, created_at: new Date(), currency: "USD", id: "wallet:buyer", owner_id: "buyer", status: "active" as const },
+		{ allow_negative: true, created_at: new Date(), currency: "USD", id: "wallet:clearing", owner_id: null, status: "active" as const },
+	];
+	const client: WalletSqlClient = {
+		query: async <Row>(sql: string, parameters: readonly unknown[] = []) => {
+			calls.push({ parameters, sql });
+			if (sql.includes("FOR UPDATE")) return { rowCount: rows.length, rows: rows as Row[] };
+			if (sql.includes("balance_cents")) return { rowCount: 1, rows: [{ ...rows[0], balance_cents: 500, reserved_cents: 0 }] as Row[] };
+			return { rowCount: 1, rows: [] };
+		},
+		transaction: async (run) => run(client),
+	};
+	await createPostgresWalletStore({ client }).applyFundingEvent({ accountId: "wallet:buyer", amountCents: 500, clearingAccountId: "wallet:clearing", idempotencyKey: "funding-1", kind: "funding", paymentRef: "pi-1" });
+	const lock = calls.find(({ sql }) => sql.includes("FOR UPDATE"));
+	expect(lock?.sql).toContain("id IN ($1,$2)");
+	expect(lock?.sql).not.toContain("ANY(");
+	expect(lock?.parameters).toEqual(["wallet:buyer", "wallet:clearing"]);
+  });
 });
