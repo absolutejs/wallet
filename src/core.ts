@@ -50,6 +50,26 @@ export type WalletReservation = {
   createdAt: string;
 };
 
+export type WalletFundingEventKind =
+  | "funding"
+  | "refund"
+  | "dispute"
+  | "dispute-reversal";
+
+export type WalletFundingEvent = {
+  accountId: string;
+  amountCents: Cents;
+  clearingAccountId: string;
+  idempotencyKey: string;
+  kind: WalletFundingEventKind;
+  paymentRef: string;
+};
+
+export type WalletFundingEventResult = {
+  account: WalletSnapshot;
+  transaction: WalletTransaction;
+};
+
 export type WalletSnapshot = WalletAccount & { balanceCents: Cents; reservedCents: Cents; availableCents: Cents };
 
 export interface WalletStore {
@@ -62,6 +82,8 @@ export interface WalletStore {
   commit(input: Omit<WalletTransaction, "id" | "createdAt"> & { captures?: string[] }): Promise<WalletTransaction>;
   reserve(input: Omit<WalletReservation, "id" | "status" | "createdAt"> & { idempotencyKey: string }): Promise<WalletReservation>;
   release(reservationId: string): Promise<WalletReservation>;
+  applyFundingEvent(input: WalletFundingEvent): Promise<WalletFundingEventResult>;
+  reviewAccountStatus(input: { accountId: string; status: "active" | "frozen" }): Promise<WalletSnapshot>;
 }
 
 export const cents = (value: number, label = "amount"): Cents => {
@@ -105,6 +127,24 @@ export const createWallet = (store: WalletStore, policy: WalletPolicy = steamLik
       { accountId: input.clearingAccountId, amountCents: -input.amountCents },
     ] });
   },
+
+  async applyFundingEvent(input: WalletFundingEvent) {
+    cents(input.amountCents, "funding event amount");
+    if (input.amountCents === 0)
+      throw new Error("wallet: funding event amount must be positive");
+    if (input.kind === "funding") {
+      if (input.amountCents < policy.minimumFundingCents)
+        throw new Error("wallet: funding is below the configured minimum");
+      const current = await store.snapshot(input.accountId);
+      if (!current) throw new Error("wallet: account not found");
+      if (current.balanceCents + input.amountCents > policy.maximumBalanceCents)
+        throw new Error("wallet: maximum balance would be exceeded");
+    }
+    return store.applyFundingEvent(input);
+  },
+
+  reviewAccountStatus: (accountId: string, status: "active" | "frozen") =>
+    store.reviewAccountStatus({ accountId, status }),
 
   async reserve(input: { accountId: string; amountCents: Cents; idempotencyKey: string; purpose: string; expiresAt?: string | null }) {
     if (cents(input.amountCents) === 0) throw new Error("wallet: reservation must be positive");

@@ -21,6 +21,53 @@ describe("double-entry wallet", () => {
     expect((await wallet.snapshot("wallet:buyer"))?.balanceCents).toBe(1_000);
   });
 
+  test("applies provider reversals atomically and freezes liabilities", async () => {
+    const { wallet } = await setup();
+    const funding = {
+      accountId: "wallet:buyer",
+      amountCents: 1_000,
+      clearingAccountId: "platform:clearing",
+      idempotencyKey: "stripe:fund:1",
+      kind: "funding" as const,
+      paymentRef: "pi_1",
+    };
+    const first = await wallet.applyFundingEvent(funding);
+    const retry = await wallet.applyFundingEvent(funding);
+    expect(retry.transaction.id).toBe(first.transaction.id);
+    await wallet.applyFundingEvent({
+      ...funding,
+      amountCents: 1_500,
+      idempotencyKey: "stripe:dispute:1",
+      kind: "dispute",
+      paymentRef: "dp_1",
+    });
+    const liable = await wallet.snapshot("wallet:buyer");
+    expect(liable).toMatchObject({ balanceCents: -500, status: "frozen" });
+    await expect(wallet.reviewAccountStatus("wallet:buyer", "active")).rejects.toThrow(/negative/);
+    await wallet.applyFundingEvent({
+      ...funding,
+      amountCents: 1_500,
+      idempotencyKey: "stripe:dispute:1:won",
+      kind: "dispute-reversal",
+      paymentRef: "dp_1",
+    });
+    expect(await wallet.reviewAccountStatus("wallet:buyer", "active")).toMatchObject({ balanceCents: 1_000, status: "active" });
+  });
+
+  test("rejects changed input under a provider idempotency key", async () => {
+    const { wallet } = await setup();
+    const input = {
+      accountId: "wallet:buyer",
+      amountCents: 1_000,
+      clearingAccountId: "platform:clearing",
+      idempotencyKey: "stripe:fund:bound",
+      kind: "funding" as const,
+      paymentRef: "pi_bound",
+    };
+    await wallet.applyFundingEvent(input);
+    await expect(wallet.applyFundingEvent({ ...input, amountCents: 1_001 })).rejects.toThrow(/different input/);
+  });
+
   test("seller-paid 10% sale captures a reserved bid atomically", async () => {
     const { wallet } = await setup();
     await wallet.fund({ accountId: "wallet:buyer", clearingAccountId: "platform:clearing", amountCents: 1_000, idempotencyKey: "fund", paymentRef: "pi" });

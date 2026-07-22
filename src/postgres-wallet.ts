@@ -141,6 +141,59 @@ export const createPostgresWalletStore = ({
     };
   };
   return {
+    applyFundingEvent: (input) =>
+      client.transaction(async (db) => {
+        const retry = await loadTransaction(db, "idempotency_key", input.idempotencyKey);
+        const credit = input.kind === "funding" || input.kind === "dispute-reversal";
+        const amount = credit ? input.amountCents : -input.amountCents;
+        const transactionKind: WalletTransaction["kind"] = input.kind === "dispute" ? "chargeback" : input.kind === "dispute-reversal" ? "adjustment" : input.kind;
+        if (retry) {
+          if (retry.kind !== transactionKind || retry.metadata.paymentRef !== input.paymentRef || retry.entries[0]?.accountId !== input.accountId || retry.entries[0]?.amountCents !== amount)
+            throw new Error("wallet: funding idempotency key was reused with different input");
+          const account = await snapshot(db, input.accountId);
+          if (!account) throw new Error("wallet: account not found");
+          return { account, transaction: retry };
+        }
+        const accountIds = [input.accountId, input.clearingAccountId];
+        const locked = await db.query<AccountRow>(
+          `SELECT id,owner_id,currency,status,allow_negative,created_at FROM ${n}.accounts WHERE id=ANY($1::text[]) FOR UPDATE`,
+          [accountIds],
+        );
+        const account = locked.rows.find((row) => row.id === input.accountId);
+        const clearing = locked.rows.find((row) => row.id === input.clearingAccountId);
+        if (!account || !clearing) throw new Error("wallet: account not found");
+        if (account.status === "closed" || clearing.status !== "active")
+          throw new Error("wallet: funding account is unavailable");
+        if (input.kind === "funding" && account.status !== "active")
+          throw new Error("wallet: funding account is not active");
+        const transaction: WalletTransaction = {
+          createdAt: new Date().toISOString(),
+          entries: [
+            { accountId: input.accountId, amountCents: amount },
+            { accountId: input.clearingAccountId, amountCents: -amount },
+          ],
+          id: `wtx:${crypto.randomUUID()}`,
+          idempotencyKey: input.idempotencyKey,
+          kind: transactionKind,
+          metadata: { fundingEventKind: input.kind, paymentRef: input.paymentRef },
+        };
+        await db.query(
+          `INSERT INTO ${n}.transactions (id,idempotency_key,kind,metadata,created_at) VALUES ($1,$2,$3,$4::jsonb,$5::timestamptz)`,
+          [transaction.id, transaction.idempotencyKey, transaction.kind, JSON.stringify(transaction.metadata), transaction.createdAt],
+        );
+        for (const [position, entry] of transaction.entries.entries())
+          await db.query(
+            `INSERT INTO ${n}.entries (transaction_id,position,account_id,amount_cents) VALUES ($1,$2,$3,$4)`,
+            [transaction.id, position, entry.accountId, entry.amountCents],
+          );
+        const current = await snapshot(db, input.accountId);
+        if (!current) throw new Error("wallet: account not found");
+        if (input.kind === "dispute" || current.balanceCents < 0)
+          await db.query(`UPDATE ${n}.accounts SET status='frozen' WHERE id=$1`, [input.accountId]);
+        const updated = await snapshot(db, input.accountId);
+        if (!updated) throw new Error("wallet: account not found");
+        return { account: updated, transaction };
+      }),
     createAccount: async (value) => {
       await client.query(
         `INSERT INTO ${n}.accounts (id,owner_id,currency,status,allow_negative,created_at) VALUES ($1,$2,$3,$4,$5,$6::timestamptz) ON CONFLICT (id) DO NOTHING`,
@@ -296,6 +349,19 @@ export const createPostgresWalletStore = ({
         const value = await loadReservation(db, id);
         if (!value) throw new Error("wallet: reservation not found");
         return value;
+      }),
+    reviewAccountStatus: ({ accountId, status }) =>
+      client.transaction(async (db) => {
+        await db.query(`SELECT id FROM ${n}.accounts WHERE id=$1 FOR UPDATE`, [accountId]);
+        const current = await snapshot(db, accountId);
+        if (!current) throw new Error("wallet: account not found");
+        if (current.status === "closed") throw new Error("wallet: closed account cannot be reviewed");
+        if (status === "active" && current.balanceCents < 0)
+          throw new Error("wallet: negative account cannot be reactivated");
+        await db.query(`UPDATE ${n}.accounts SET status=$2 WHERE id=$1`, [accountId, status]);
+        const updated = await snapshot(db, accountId);
+        if (!updated) throw new Error("wallet: account not found");
+        return updated;
       }),
   };
 };
