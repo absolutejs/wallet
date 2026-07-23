@@ -37,7 +37,12 @@ export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
   tools: {
     wallet_policy: tool.runtime({
       annotations: { readOnlyHint: true },
-      authorization: { effects: ["read"], requiredScopes: ["wallet:read"] },
+      authorization: {
+        approval: "never",
+        audience: "authenticated",
+        effects: ["read"],
+        requiredScopes: ["wallet:read"],
+      },
       description:
         "Explain this wallet's currency, deposit and balance limits, marketplace fee, and direct-trade fee.",
       handler: (_input, agentWallet) =>
@@ -46,7 +51,17 @@ export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
     }),
     quote_spend: tool.runtime({
       annotations: { readOnlyHint: true },
-      authorization: { effects: ["read"], requiredScopes: ["wallet:read"] },
+      authorization: {
+        approval: "never",
+        audience: "owner",
+        effects: ["read"],
+        requiredScopes: ["wallet:read"],
+        resource: {
+          idField: "allowanceId",
+          ownerIdField: "agentId",
+          type: "wallet-allowance",
+        },
+      },
       description:
         "Check an agent spend against its allowance without reserving or moving funds.",
       handler: async (input, agentWallet) =>
@@ -66,11 +81,20 @@ export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
       }),
     }),
     request_spend: tool.runtime({
+      annotations: { destructiveHint: true, idempotentHint: true },
       authorization: {
         approval: "policy",
+        audience: "owner",
+        compensatingTool: "cancel_spend",
         effects: ["purchase"],
-        idempotencyKeyField: "idempotencyKey",
+        idempotency: { field: "idempotencyKey", mode: "field" },
         requiredScopes: ["wallet:spend"],
+        resource: {
+          idField: "allowanceId",
+          ownerIdField: "agentId",
+          type: "wallet-allowance",
+        },
+        reversible: true,
         spend: { amountMinorField: "amountCents", currencyField: "currency" },
       },
       description:
@@ -92,10 +116,16 @@ export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
       }),
     }),
     execute_approved_spend: tool.runtime({
+      annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: true },
       authorization: {
         approval: "policy",
+        audience: "owner",
+        destinationFields: ["merchantId"],
         effects: ["purchase", "transfer", "external-network"],
+        idempotency: { mode: "resource" },
         requiredScopes: ["wallet:spend"],
+        resource: { idField: "mandateId", type: "spend-mandate" },
+        reversible: false,
         spend: { amountMinorField: "amountCents", currencyField: "currency" },
       },
       description:
@@ -112,10 +142,15 @@ export const manifest = defineManifest<Record<never, never>, AgentWallet>()({
       }),
     }),
     cancel_spend: tool.runtime({
+      annotations: { idempotentHint: true },
       authorization: {
+        approval: "policy",
+        audience: "owner",
         effects: ["write"],
+        idempotency: { mode: "resource" },
         requiredScopes: ["wallet:spend"],
-        reversible: true,
+        resource: { idField: "mandateId", type: "spend-mandate" },
+        reversible: false,
       },
       description:
         "Cancel an unused spend mandate and release its exact reservation.",
