@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",
@@ -38,16 +38,19 @@
     "check:package": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "@absolutejs/agency": "^0.6.0",
+    "@absolutejs/agency": "^0.6.3",
     "@absolutejs/manifest": "^0.3.0",
-    "@sinclair/typebox": "^0.34.0",
-    "drizzle-orm": "1.0.0-rc.4"
+    "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "drizzle-orm": "1.0.0-rc.4"
   },
   "absolutejs": {
     "manifestContract": 2
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=1.0.0-rc.4 <2"
   }
 }
