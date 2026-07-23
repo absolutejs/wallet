@@ -50,6 +50,8 @@ const portableJsonb = customType<{ data: unknown; driverData: unknown }>({
     typeof value === "string" ? JSON.parse(value) : value,
   toDriver: (value) => JSON.stringify(value),
 });
+const encodedJsonb = <Value>(value: Value) =>
+  sql<Value>`${JSON.stringify(value)}::text::jsonb`;
 
 const namespaceOf = (value: string) => {
   if (!/^[a-z][a-z0-9_]*$/i.test(value))
@@ -344,9 +346,9 @@ export const createDrizzleAgentWalletStore = <DB extends AnyPgDatabase>(
           agent_id: allowance.agentId,
           allowance_id: allowance.allowanceId,
           currency: allowance.currency,
-          data: allowance,
+          data: encodedJsonb(allowance),
           owner_id: allowance.ownerId,
-          policy: allowance,
+          policy: encodedJsonb(allowance),
           status: allowance.status,
           tenant_id: allowance.tenantId,
           valid_from: date(allowance.validFrom),
@@ -354,8 +356,8 @@ export const createDrizzleAgentWalletStore = <DB extends AnyPgDatabase>(
         })
         .onConflictDoUpdate({
           set: {
-            data: allowance,
-            policy: allowance,
+            data: encodedJsonb(allowance),
+            policy: encodedJsonb(allowance),
             status: allowance.status,
             updated_at: new Date(),
             valid_from: date(allowance.validFrom),
@@ -377,7 +379,7 @@ export const createDrizzleAgentWalletStore = <DB extends AnyPgDatabase>(
           cart_hash: mandate.cartHash,
           created_at: new Date(mandate.createdAt),
           currency: mandate.currency,
-          data: mandate,
+          data: encodedJsonb(mandate),
           expires_at: new Date(mandate.expiresAt),
           idempotency_key: mandate.idempotencyKey,
           mandate_id: mandate.mandateId,
@@ -390,7 +392,7 @@ export const createDrizzleAgentWalletStore = <DB extends AnyPgDatabase>(
           set: {
             agency_action_id: mandate.agencyActionId ?? null,
             captured_transaction_id: mandate.capturedTransactionId ?? null,
-            data: mandate,
+            data: encodedJsonb(mandate),
             status: mandate.status,
           },
           target: spendMandates.mandate_id,
@@ -513,7 +515,7 @@ export const createDrizzleWalletStore = <DB extends AnyPgDatabase>(
       id: transaction.id,
       idempotency_key: transaction.idempotencyKey,
       kind: transaction.kind,
-      metadata: transaction.metadata,
+      metadata: encodedJsonb(transaction.metadata),
     });
     if (transaction.entries.length > 0)
       await database.insert(entries).values(
