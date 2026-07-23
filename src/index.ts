@@ -1,4 +1,5 @@
 export * from "./core";
+export * from "./drizzle";
 export * from "./allowances";
 export * from "./bun";
 export * from "./memory";

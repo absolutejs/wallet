@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",
@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --root ./src --outdir dist --sourcemap --target=bun && tsc --project tsconfig.build.json && absolute-manifest emit",
+    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --root ./src --outdir dist --sourcemap --target=bun --external drizzle-orm --external 'drizzle-orm/*' && tsc --project tsconfig.build.json && absolute-manifest emit",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check:package": "bun run typecheck && bun run test && bun run build"
@@ -40,7 +40,8 @@
   "dependencies": {
     "@absolutejs/agency": "^0.6.0",
     "@absolutejs/manifest": "^0.3.0",
-    "@sinclair/typebox": "^0.34.0"
+    "@sinclair/typebox": "^0.34.0",
+    "drizzle-orm": "1.0.0-rc.4"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
