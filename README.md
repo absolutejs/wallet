@@ -36,6 +36,11 @@ Capture cannot proceed until current policy accepts the approval, and it then
 executes through a single-use agency lease. The model never receives a raw
 balance mutation tool.
 
+Agency is a required host peer (`>=0.7.1 <0.8.0`) and is externalized from the
+Wallet build. Allowances and every other agent surface therefore share the
+host's one approval ledger. This package tests against exactly `0.7.1`; a new
+Agency minor requires an explicit compatibility release.
+
 External provider effects use `captureExternalSpend()` only after the provider
 has succeeded or conclusive reconciliation evidence proves it succeeded. The
 purchase atomically captures the exact reservation into a provider clearing

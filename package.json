@@ -1,6 +1,6 @@
 {
   "name": "@absolutejs/wallet",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Provider-agnostic, double-entry dollar wallets with reservations, idempotent settlement, and closed-loop marketplace policy for AbsoluteJS apps.",
   "type": "module",
   "license": "BSL-1.1",
@@ -32,17 +32,17 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --root ./src --outdir dist --sourcemap --target=bun --external drizzle-orm --external 'drizzle-orm/*' && tsc --project tsconfig.build.json && absolute-manifest emit",
+    "build": "rm -rf dist && bun build src/index.ts src/manifest.ts --root ./src --outdir dist --sourcemap --target=bun --external @absolutejs/agency --external '@absolutejs/agency/*' --external drizzle-orm --external 'drizzle-orm/*' && tsc --project tsconfig.build.json && absolute-manifest emit",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "check:package": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
-    "@absolutejs/agency": "^0.6.3",
     "@absolutejs/manifest": "^0.4.0",
     "@sinclair/typebox": "^0.34.0"
   },
   "devDependencies": {
+    "@absolutejs/agency": "0.7.1",
     "@types/bun": "^1.3.14",
     "typescript": "^5.9.0",
     "drizzle-orm": "1.0.0-rc.4"
@@ -51,6 +51,7 @@
     "manifestContract": 2
   },
   "peerDependencies": {
+    "@absolutejs/agency": ">=0.7.1 <0.8.0",
     "drizzle-orm": ">=1.0.0-rc.4 <2"
   }
 }
