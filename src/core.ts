@@ -94,14 +94,21 @@ export const cents = (value: number, label = "amount"): Cents => {
 
 export const assertBalanced = (entries: WalletEntry[]) => {
   if (entries.length < 2) throw new Error("wallet: a journal transaction needs at least two entries");
-  const total = entries.reduce((sum, entry) => sum + entry.amountCents, 0);
-  if (total !== 0) throw new Error(`wallet: unbalanced journal transaction (${total} cents)`);
+  const accounts = new Set<string>();
+  let total = 0n;
+  for (const entry of entries) {
+    if (!Number.isSafeInteger(entry.amountCents)) throw new Error("wallet: journal entries must be safe integer cents");
+    if (!entry.accountId || accounts.has(entry.accountId)) throw new Error("wallet: journal needs distinct account entries");
+    accounts.add(entry.accountId);
+    total += BigInt(entry.amountCents);
+  }
+  if (total !== 0n) throw new Error(`wallet: unbalanced journal transaction (${total} cents)`);
 };
 
 export const sellerFee = (grossCents: Cents, bps: number) => {
   cents(grossCents, "gross");
   if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) throw new Error("wallet: fee basis points must be 0..10000");
-  const feeCents = Math.ceil((grossCents * bps) / 10_000);
+  const feeCents = Number((BigInt(grossCents) * BigInt(bps) + 9_999n) / 10_000n);
   return { grossCents, feeCents, sellerNetCents: grossCents - feeCents };
 };
 

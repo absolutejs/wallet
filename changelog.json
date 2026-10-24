@@ -1,5 +1,27 @@
 {
 	"contract": 1,
 	"name": "@absolutejs/wallet",
-	"releases": []
+	"releases": [
+		{
+			"changes": [
+				{
+					"kind": "breaking",
+					"migration": {
+						"instruction": "Combine a transaction's entries per account before posting, so each account appears once",
+						"manual": true
+					},
+					"summary": "A journal transaction must post to distinct accounts; two entries on one account are refused",
+					"symbols": [
+						"assertBalanced"
+					]
+				},
+				{
+					"kind": "fixed",
+					"summary": "Balance journals and seller fees in exact integer arithmetic, refusing amounts that are not safe integer cents"
+				}
+			],
+			"date": "2026-10-24",
+			"version": "0.10.0"
+		}
+	]
 }
